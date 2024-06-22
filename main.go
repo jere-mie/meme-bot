@@ -151,6 +151,12 @@ func (h *handler) cmdMeme(ctx context.Context, data cmdroute.CommandData) *api.I
 		return errorResponse(err)
 	}
 
+	if options.FontSize > 75 || options.FontSize < 8 {
+		return &api.InteractionResponseData{
+			Content: option.NewNullableString("Font size must be an integer between 8 and 75"),
+		}
+	}
+
 	imagePath := fmt.Sprintf("./assets/img/%s.png", options.Template)
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		return &api.InteractionResponseData{
