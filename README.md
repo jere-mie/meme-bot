@@ -21,9 +21,6 @@ go install github.com/air-verse/air@latest
 
 and then you can type `air` in your terminal to run the application.
 
-<!--
-
->> keeping this commented out until I actually create some releases
 
 ## Downloading Pre-Built Binaries
 
@@ -44,5 +41,3 @@ curl -L https://github.com/jere-mie/meme-bot/releases/latest/download/memebot_da
 # MacOS amd64 (Intel)
 curl -L https://github.com/jere-mie/meme-bot/releases/latest/download/memebot_darwin_amd64 -o memebot && chmod +x memebot
 ```
-
--->
