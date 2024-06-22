@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"image/png"
 	"log"
 	"os"
 	"os/signal"
@@ -16,7 +14,6 @@ import (
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
 	"github.com/diamondburned/arikawa/v3/utils/sendpart"
-	"github.com/fogleman/gg"
 	"github.com/joho/godotenv"
 )
 
@@ -155,37 +152,14 @@ func (h *handler) cmdMeme(ctx context.Context, data cmdroute.CommandData) *api.I
 	}
 
 	imagePath := fmt.Sprintf("./assets/img/%s.png", options.Template)
-	fontPath := "./assets/fonts/Anton-Regular.ttf"
-
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		return &api.InteractionResponseData{
-			Content: option.NewNullableString("Template not found"),
+			Content: option.NewNullableString(fmt.Sprintf("Meme template `%s` not found!", options.Template)),
 		}
 	}
 
-	imgBytes, err := os.ReadFile(imagePath)
+	buf, err := drawImage(options.Template, float64(options.FontSize), options.Text)
 	if err != nil {
-		return errorResponse(err)
-	}
-
-	img, err := png.Decode(bytes.NewReader(imgBytes))
-	if err != nil {
-		return errorResponse(err)
-	}
-
-	dc := gg.NewContextForImage(img)
-	if err := dc.LoadFontFace(fontPath, float64(options.FontSize)); err != nil {
-		return errorResponse(err)
-	}
-
-	// Set font color to black
-	dc.SetRGB(0, 0, 0)
-
-	maxWidth := float64(dc.Width()) - 20 // Padding from edges
-	dc.DrawStringWrapped(options.Text, 10, 10, 0, 0, maxWidth, 1.5, gg.AlignCenter)
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, dc.Image()); err != nil {
 		return errorResponse(err)
 	}
 
@@ -194,7 +168,7 @@ func (h *handler) cmdMeme(ctx context.Context, data cmdroute.CommandData) *api.I
 		Files: []sendpart.File{
 			{
 				Name:   "meme.png",
-				Reader: &buf,
+				Reader: buf,
 			},
 		},
 	}

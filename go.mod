@@ -6,6 +6,7 @@ require (
 	github.com/diamondburned/arikawa/v3 v3.3.6
 	github.com/fogleman/gg v1.3.0
 	github.com/joho/godotenv v1.5.1
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 )
 
 require (
