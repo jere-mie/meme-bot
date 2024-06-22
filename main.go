@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/api/cmdroute"
@@ -53,6 +55,10 @@ var commands = []api.CreateCommandData{
 				Required:    true,
 			},
 		},
+	},
+	{
+		Name:        "memes",
+		Description: "list available meme templates",
 	},
 }
 
@@ -115,6 +121,7 @@ func newHandler(s *state.State) *handler {
 	h.AddFunc("ping", h.cmdPing)
 	h.AddFunc("echo", h.cmdEcho)
 	h.AddFunc("meme", h.cmdMeme)
+	h.AddFunc("memes", h.cmdMemes)
 
 	return h
 }
@@ -175,6 +182,52 @@ func (h *handler) cmdMeme(ctx context.Context, data cmdroute.CommandData) *api.I
 			{
 				Name:   "meme.png",
 				Reader: buf,
+			},
+		},
+	}
+}
+
+func (h *handler) cmdMemes(ctx context.Context, cmd cmdroute.CommandData) *api.InteractionResponseData {
+	files, err := os.ReadDir("./assets/img")
+	if err != nil {
+		return errorResponse(err)
+	}
+
+	var memes []string
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".png") {
+			memes = append(memes, strings.TrimSuffix(file.Name(), ".png"))
+		}
+	}
+
+	// Check if memes.png exists
+	memeImagePath := "./assets/img/memes.png"
+	if _, err := os.Stat(memeImagePath); os.IsNotExist(err) {
+		return &api.InteractionResponseData{
+			Content: option.NewNullableString("Available meme templates:\n```" + strings.Join(memes, ", ") + "```"),
+		}
+	}
+
+	// Open the image file
+	memeImage, err := os.Open(memeImagePath)
+	if err != nil {
+		return errorResponse(err)
+	}
+	defer memeImage.Close()
+
+	// Read the image file into a buffer
+	imageData, err := io.ReadAll(memeImage)
+	if err != nil {
+		return errorResponse(err)
+	}
+	imageBuffer := strings.NewReader(string(imageData))
+
+	return &api.InteractionResponseData{
+		Content: option.NewNullableString("Available meme templates:\n```" + strings.Join(memes, ", ") + "```"),
+		Files: []sendpart.File{
+			{
+				Name:   "memes.png",
+				Reader: imageBuffer,
 			},
 		},
 	}
