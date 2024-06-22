@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"image/png"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/diamondburned/arikawa/v3/api"
 	"github.com/diamondburned/arikawa/v3/api/cmdroute"
@@ -14,6 +15,8 @@ import (
 	"github.com/diamondburned/arikawa/v3/gateway"
 	"github.com/diamondburned/arikawa/v3/state"
 	"github.com/diamondburned/arikawa/v3/utils/json/option"
+	"github.com/diamondburned/arikawa/v3/utils/sendpart"
+	"github.com/fogleman/gg"
 	"github.com/joho/godotenv"
 )
 
@@ -34,8 +37,25 @@ var commands = []api.CreateCommandData{
 		},
 	},
 	{
-		Name:        "thonk",
-		Description: "biiiig thonk",
+		Name:        "meme",
+		Description: "generate a meme",
+		Options: []discord.CommandOption{
+			&discord.StringOption{
+				OptionName:  "template",
+				Description: "name of the meme template",
+				Required:    true,
+			},
+			&discord.IntegerOption{
+				OptionName:  "fontsize",
+				Description: "size of the font",
+				Required:    true,
+			},
+			&discord.StringOption{
+				OptionName:  "text",
+				Description: "text to place on the meme",
+				Required:    true,
+			},
+		},
 	},
 }
 
@@ -48,6 +68,20 @@ func main() {
 	token := os.Getenv("MEME_BOT_TOKEN")
 	if token == "" {
 		log.Fatalln("No $MEME_BOT_TOKEN given.")
+	}
+
+	s := state.New("Bot " + token)
+	defer s.Close()
+	app, err := s.CurrentApplication()
+	if err != nil {
+		log.Fatalln("Failed to get application ID:", err)
+	}
+
+	guildSnowflake, err := discord.ParseSnowflake(os.Getenv("DEBUG_GUILD_ID"))
+	if err == nil {
+		if _, err := s.BulkOverwriteGuildCommands(app.ID, discord.GuildID(guildSnowflake), commands); err != nil {
+			log.Fatalln("failed to create guild command:", err)
+		}
 	}
 
 	h := newHandler(state.New("Bot " + token))
@@ -83,7 +117,7 @@ func newHandler(s *state.State) *handler {
 	h.Use(cmdroute.Deferrable(s, cmdroute.DeferOpts{}))
 	h.AddFunc("ping", h.cmdPing)
 	h.AddFunc("echo", h.cmdEcho)
-	h.AddFunc("thonk", h.cmdThonk)
+	h.AddFunc("meme", h.cmdMeme)
 
 	return h
 }
@@ -109,10 +143,60 @@ func (h *handler) cmdEcho(ctx context.Context, data cmdroute.CommandData) *api.I
 	}
 }
 
-func (h *handler) cmdThonk(ctx context.Context, data cmdroute.CommandData) *api.InteractionResponseData {
-	time.Sleep(time.Duration(3+rand.Intn(5)) * time.Second)
+func (h *handler) cmdMeme(ctx context.Context, data cmdroute.CommandData) *api.InteractionResponseData {
+	var options struct {
+		Template string `discord:"template"`
+		FontSize int    `discord:"fontsize"`
+		Text     string `discord:"text"`
+	}
+
+	if err := data.Options.Unmarshal(&options); err != nil {
+		return errorResponse(err)
+	}
+
+	imagePath := fmt.Sprintf("./assets/img/%s.png", options.Template)
+	fontPath := "./assets/fonts/Anton-Regular.ttf"
+
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		return &api.InteractionResponseData{
+			Content: option.NewNullableString("Template not found"),
+		}
+	}
+
+	imgBytes, err := os.ReadFile(imagePath)
+	if err != nil {
+		return errorResponse(err)
+	}
+
+	img, err := png.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		return errorResponse(err)
+	}
+
+	dc := gg.NewContextForImage(img)
+	if err := dc.LoadFontFace(fontPath, float64(options.FontSize)); err != nil {
+		return errorResponse(err)
+	}
+
+	// Set font color to black
+	dc.SetRGB(0, 0, 0)
+
+	maxWidth := float64(dc.Width()) - 20 // Padding from edges
+	dc.DrawStringWrapped(options.Text, 10, 10, 0, 0, maxWidth, 1.5, gg.AlignCenter)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, dc.Image()); err != nil {
+		return errorResponse(err)
+	}
+
 	return &api.InteractionResponseData{
-		Content: option.NewNullableString("https://tenor.com/view/thonk-thinking-sun-thonk-sun-thinking-sun-gif-14999983"),
+		Content: option.NewNullableString("Here's your meme!"),
+		Files: []sendpart.File{
+			{
+				Name:   "meme.png",
+				Reader: &buf,
+			},
+		},
 	}
 }
 
